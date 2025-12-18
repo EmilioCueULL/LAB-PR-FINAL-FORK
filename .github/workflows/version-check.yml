@@ -1,0 +1,37 @@
+name: Java and OS Compatibility Check
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+  workflow_dispatch:
+
+jobs:
+  compatibility-test:
+    name: Test on ${{ matrix.os }} with Java ${{ matrix.java }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false # Permite que todas las pruebas terminen aunque una falle
+      matrix:
+        # Matriz de Sistemas Operativos
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        # Matriz de versiones de Java (LTS y compatibles)
+        java: [17, 21, 25]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK ${{ matrix.java }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ matrix.java }}
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Verify Build and Tests
+        run: mvn --batch-mode clean verify -DskipTests=false
