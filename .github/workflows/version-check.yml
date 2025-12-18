@@ -1,4 +1,4 @@
-name: Reporte de Compatibilidad (Master)
+name: Reporte de Compatibilidad HTML (Master)
 
 on:
   push:
@@ -8,9 +8,10 @@ on:
   workflow_dispatch:
 
 jobs:
-  check-compatibilidad:
-    name: Java ${{ matrix.java }} / ${{ matrix.os }}
+  test-compatibilidad:
+    name: ${{ matrix.os }} - Java ${{ matrix.java }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15 # Evita que macOS se quede colgado infinitamente
     strategy:
       fail-fast: false
       matrix:
@@ -28,24 +29,41 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      - name: Compilación y Tests Rápidos
-        id: maven_step
-        # Saltamos plugins pesados definidos en tu pom.xml
+      - name: Ejecutar Tests (Modo Rápido)
+        id: maven_test
+        shell: bash
+        # Añadimos -Djava.awt.headless=true para evitar bloqueos en macOS/Windows sin pantalla
         run: |
           mvn clean test \
+            -Djava.awt.headless=true \
             -Ddependency-check.skip=true \
             -Dsonar.skip=true \
             -Djacoco.skip=true \
             -Dcheckstyle.skip=true \
             -Dpmd.skip=true
 
-      - name: Generar Informe en el Resumen
+      - name: Generar Informe HTML Simple
         if: always()
+        shell: bash
         run: |
-          echo "### Resultado para Java ${{ matrix.java }} en ${{ matrix.os }}" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ steps.maven_step.outcome }}" == "success" ]; then
-            echo "✅ **Estado:** Éxito" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ **Estado:** Fallido" >> $GITHUB_STEP_SUMMARY
+          STATUS="EXITO"
+          COLOR="green"
+          if [ "${{ steps.maven_test.outcome }}" != "success" ]; then
+            STATUS="FALLO"
+            COLOR="red"
           fi
-          echo "---" >> $GITHUB_STEP_SUMMARY
+          
+          echo "<html><body style='font-family:sans-serif;'>" > reporte-${{ matrix.os }}-java${{ matrix.java }}.html
+          echo "<h1>Informe de Compatibilidad</h1>" >> reporte-${{ matrix.os }}-java${{ matrix.java }}.html
+          echo "<p><strong>Sistema Operativo:</strong> ${{ matrix.os }}</p>" >> reporte-${{ matrix.os }}-java${{ matrix.java }}.html
+          echo "<p><strong>Versión Java:</strong> ${{ matrix.java }}</p>" >> reporte-${{ matrix.os }}-java${{ matrix.java }}.html
+          echo "<p><strong>Resultado:</strong> <span style='color:$COLOR;'>$STATUS</span></p>" >> reporte-${{ matrix.os }}-java${{ matrix.java }}.html
+          echo "<p>Fecha: $(date)</p>" >> reporte-${{ matrix.os }}-java${{ matrix.java }}.html
+          echo "</body></html>" >> reporte-${{ matrix.os }}-java${{ matrix.java }}.html
+
+      - name: Subir Informe HTML como Artefacto
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reporte-${{ matrix.os }}-java${{ matrix.java }}
+          path: reporte-*.html
