@@ -1,36 +1,36 @@
-name: Fast Java Matrix
+name: Reporte de Compatibilidad (Master)
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ master ]
   pull_request:
+    branches: [ master ]
   workflow_dispatch:
 
 jobs:
-  check-java:
-    name: Java ${{ matrix.java }} on ${{ matrix.os }}
+  check-compatibilidad:
+    name: Java ${{ matrix.java }} / ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        # Si quieres máxima velocidad, deja solo ubuntu-latest. 
-        # Si el profesor exige SO, mantén los tres.
         os: [ubuntu-latest, windows-latest, macos-latest]
         java: [17, 21, 25]
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout código
+        uses: actions/checkout@v4
 
-      - name: Set up JDK ${{ matrix.java }}
+      - name: Configurar Java ${{ matrix.java }}
         uses: actions/setup-java@v4
         with:
           java-version: ${{ matrix.java }}
           distribution: 'temurin'
           cache: maven
 
-      - name: Compile and Test ONLY
-        # Usamos 'test' en lugar de 'verify' para evitar que se disparen plugins de reporte.
-        # Añadimos flags para saltarnos explícitamente los plugins pesados.
+      - name: Compilación y Tests Rápidos
+        id: maven_step
+        # Saltamos plugins pesados definidos en tu pom.xml
         run: |
           mvn clean test \
             -Ddependency-check.skip=true \
@@ -38,3 +38,14 @@ jobs:
             -Djacoco.skip=true \
             -Dcheckstyle.skip=true \
             -Dpmd.skip=true
+
+      - name: Generar Informe en el Resumen
+        if: always()
+        run: |
+          echo "### Resultado para Java ${{ matrix.java }} en ${{ matrix.os }}" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.maven_step.outcome }}" == "success" ]; then
+            echo "✅ **Estado:** Éxito" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Estado:** Fallido" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "---" >> $GITHUB_STEP_SUMMARY
